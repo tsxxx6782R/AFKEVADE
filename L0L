@@ -1,0 +1,402 @@
+-- [[ Evade Abdul Menu: Ultimate Edition with Intro Animation, Minimize, Resizable, FPS & Anti-AFK ]]
+-- Modern Pro UI Hub Style
+
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ป้องกันสร้างซ้ำหากรันหลายรอบ
+if CoreGui:FindFirstChild("EvadeAbdulMenu") then
+    CoreGui.EvadeAbdulMenu:Destroy()
+end
+
+local scriptStartTime = tick()
+
+-- 1. สร้าง ScreenGui หลัก
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EvadeAbdulMenu"
+ScreenGui.ResetOnSpawn = false
+if pcall(function() ScreenGui.Parent = CoreGui end) then
+else
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- 2. สร้างกรอบเมนูหลัก (Main Frame)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 0, 0, 0) -- เริ่มต้นด้วยขนาด 0 เพื่อทำอนิเมชั่นเปิด
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.15
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+-- มุมโค้งมนของเมนู
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+-- อนิเมชั่นเปิดสคริปต์ (Intro Pop-up Animation แบบสคริปต์ฮับดังๆ)
+task.spawn(function()
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    local openTween = TweenService:Create(MainFrame, tweenInfo, {
+        Size = UDim2.new(0, 380, 0, 380),
+        Position = UDim2.new(0.5, -190, 0.5, -190)
+    })
+    openTween:Play()
+end)
+
+-- 3. ขอบออร่าสายรุ้ง (Rainbow Border Gradient)
+local RainbowStroke = Instance.new("UIStroke")
+RainbowStroke.Thickness = 3
+RainbowStroke.Parent = MainFrame
+
+task.spawn(function()
+    while MainFrame.Parent do
+        local hue = tick() % 5 / 5
+        RainbowStroke.Color = Color3.fromHSV(hue, 1, 1)
+        task.wait(0.03)
+    end
+end)
+
+-- 4. หัวข้อเมนู & แถบควบคุมบนสุด (Top Bar)
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BackgroundTransparency = 1
+TopBar.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -90, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚡ Evade: อับดุล Hub Pro"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 17
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TopBar
+
+-- ปุ่มย่อ/ขยายหน้าต่าง (Minimize Button)
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+MinimizeBtn.Position = UDim2.new(1, -75, 0.5, -15)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.TextSize = 16
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Parent = TopBar
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.Parent = MinimizeBtn
+
+-- ปุ่มปิดเมนู (Close Button)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 14
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = TopBar
+
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- ระบบกดปุ่มย่อหน้าต่าง
+local isMinimized = false
+local normalSize = UDim2.new(0, 380, 0, 380)
+local minimizedSize = UDim2.new(0, 380, 0, 45)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    local targetSize = isMinimized and minimizedSize or normalSize
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    TweenService:Create(MainFrame, tweenInfo, {Size = targetSize}):Play()
+    MinimizeBtn.Text = isMinimized and "+" or "-"
+end)
+
+-- เส้นคั่นหัวข้อ
+local Divider = Instance.new("Frame")
+Divider.Size = UDim2.new(1, -30, 0, 1)
+Divider.Position = UDim2.new(0, 15, 0, 45)
+Divider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Divider.BackgroundTransparency = 0.8
+Divider.BorderSizePixel = 0
+Divider.Parent = MainFrame
+
+-- 5. ระบบแสดงข้อมูลสถิติ (FPS & AFK Timer Panel)
+local StatsPanel = Instance.new("Frame")
+StatsPanel.Size = UDim2.new(1, -30, 0, 45)
+StatsPanel.Position = UDim2.new(0, 15, 0, 55)
+StatsPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+StatsPanel.BackgroundTransparency = 0.5
+StatsPanel.BorderSizePixel = 0
+StatsPanel.Parent = MainFrame
+
+local StatsCorner = Instance.new("UICorner")
+StatsCorner.CornerRadius = UDim.new(0, 8)
+StatsCorner.Parent = StatsPanel
+
+local FpsTextLabel = Instance.new("TextLabel")
+FpsTextLabel.Size = UDim2.new(0.5, 0, 1, 0)
+FpsTextLabel.BackgroundTransparency = 1
+FpsTextLabel.Text = "FPS: Calculating..."
+FpsTextLabel.TextColor3 = Color3.fromRGB(46, 204, 113)
+FpsTextLabel.TextSize = 12
+FpsTextLabel.Font = Enum.Font.GothamBold
+FpsTextLabel.Parent = StatsPanel
+
+local AfkTimeLabel = Instance.new("TextLabel")
+AfkTimeLabel.Size = UDim2.new(0.5, 0, 1, 0)
+AfkTimeLabel.Position = UDim2.new(0.5, 0, 0, 0)
+AfkTimeLabel.BackgroundTransparency = 1
+AfkTimeLabel.Text = "AFK: 0 นาที"
+AfkTimeLabel.TextColor3 = Color3.fromRGB(241, 196, 15)
+AfkTimeLabel.TextSize = 12
+AfkTimeLabel.Font = Enum.Font.GothamBold
+AfkTimeLabel.Parent = StatsPanel
+
+-- อัปเดต FPS และเวลา AFK แบบเรียลไทม์
+local frameCount = 0
+local lastUpdate = tick()
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = tick()
+    
+    if now - lastUpdate >= 1 then
+        local fps = math.floor(frameCount / (now - lastUpdate))
+        FpsTextLabel.Text = "FPS: " .. tostring(fps)
+        frameCount = 0
+        lastUpdate = now
+    end
+    
+    local totalSeconds = math.floor(now - scriptStartTime)
+    local minutes = math.floor(totalSeconds / 60)
+    local seconds = totalSeconds % 60
+    AfkTimeLabel.Text = string.format("AFK: %dน %dว", minutes, seconds)
+end)
+
+-- 6. ระบบสะเก็ดหิมะสายรุ้งสามมิติ (3D Rainbow Snowflakes Effect)
+local SnowContainer = Instance.new("Folder")
+SnowContainer.Name = "SnowContainer"
+SnowContainer.Parent = MainFrame
+
+local snowflakes = {}
+math.randomseed(tick())
+
+for i = 1, 18 do
+    local flake = Instance.new("Frame")
+    flake.Size = UDim2.new(0, math.random(4, 7), 0, math.random(4, 7))
+    flake.Position = UDim2.new(math.random(), 0, -0.1, 0)
+    flake.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    flake.BorderSizePixel = 0
+    
+    local flakeCorner = Instance.new("UICorner")
+    flakeCorner.CornerRadius = UDim.new(1, 0)
+    flakeCorner.Parent = flake
+    
+    flake.Parent = SnowContainer
+    
+    table.insert(snowflakes, {
+        Object = flake,
+        Speed = math.random(20, 50) / 1000,
+        XOffset = math.random(-50, 50) / 500,
+        Depth = math.random(1, 3)
+    })
+end
+
+RunService.RenderStepped:Connect(function()
+    for _, flakeData in ipairs(snowflakes) do
+        local flake = flakeData.Object
+        local pos = flake.Position
+        local newY = pos.Y.Scale + (flakeData.Speed * (1 / flakeData.Depth))
+        
+        if newY > 1.1 then
+            newY = -0.1
+            flake.Position = UDim2.new(math.random(), 0, newY, 0)
+        else
+            flake.Position = UDim2.new(pos.X.Scale + (flakeData.XOffset * 0.01), 0, newY, 0)
+        end
+        
+        local hue = (tick() + flakeData.Depth * 0.5) % 5 / 5
+        flake.BackgroundColor3 = Color3.fromHSV(hue, 0.8, 1)
+        flake.BackgroundTransparency = 0.2 * flakeData.Depth
+    end
+end)
+
+-- 7. ส่วนควบคุมฟังก์ชัน (Function & Switches Area)
+local ContentArea = Instance.new("ScrollingFrame")
+ContentArea.Size = UDim2.new(1, 0, 1, -115)
+ContentArea.Position = UDim2.new(0, 0, 0, 110)
+ContentArea.BackgroundTransparency = 1
+ContentArea.BorderSizePixel = 0
+ContentArea.ScrollBarThickness = 4
+ContentArea.CanvasSize = UDim2.new(0, 0, 0, 160)
+ContentArea.Parent = MainFrame
+
+-- ฟังก์ชันสร้างปุ่มสวิตช์ UI
+local function CreateToggleRow(name, yPos, callback)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0, 240, 0, 35)
+    Label.Position = UDim2.new(0, 20, 0, yPos)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ContentArea
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
+    ToggleBtn.Position = UDim2.new(1, -70, 0, yPos + 5)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    ToggleBtn.AutoButtonColor = false
+    ToggleBtn.Text = ""
+    ToggleBtn.Parent = ContentArea
+
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(1, 0)
+    ToggleCorner.Parent = ToggleBtn
+
+    local ToggleCircle = Instance.new("Frame")
+    ToggleCircle.Size = UDim2.new(0, 18, 0, 18)
+    ToggleCircle.Position = UDim2.new(0, 3, 0.5, -9)
+    ToggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleCircle.Parent = ToggleBtn
+
+    local CircleCorner = Instance.new("UICorner")
+    CircleCorner.CornerRadius = UDim.new(1, 0)
+    CircleCorner.Parent = ToggleCircle
+
+    local isEnabled = false
+    ToggleBtn.MouseButton1Click:Connect(function()
+        isEnabled = not isEnabled
+        if isEnabled then
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+            ToggleCircle:TweenPosition(UDim2.new(1, -21, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        else
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            ToggleCircle:TweenPosition(UDim2.new(0, 3, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        end
+        callback(isEnabled)
+    end)
+end
+
+-- [สวิตช์ที่ 1]: ระบบ Auto Farm ลอยฟ้า
+local platformPart = nil
+local farmConnection = nil
+CreateToggleRow("ออโต้ฟาร์มลอยฟ้า (Auto Farm High)", 10, function(state)
+    if state then
+        farmConnection = RunService.RenderStepped:Connect(function()
+            local character = LocalPlayer.Character
+            if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+            local hrp = character.HumanoidRootPart
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            
+            if humanoid and humanoid.Health > 0 then
+                if not platformPart or not platformPart.Parent then
+                    platformPart = Instance.new("Part")
+                    platformPart.Name = "AbdulFarmPlatform"
+                    platformPart.Size = Vector3.new(10, 1, 10)
+                    platformPart.Position = Vector3.new(hrp.Position.X, 350, hrp.Position.Z)
+                    platformPart.Anchored = true
+                    platformPart.Transparency = 0.5
+                    platformPart.BrickColor = BrickColor.new("Bright blue")
+                    platformPart.Parent = Workspace
+                end
+                hrp.CFrame = CFrame.new(platformPart.Position + Vector3.new(0, 3, 0))
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            else
+                if platformPart then platformPart:Destroy() platformPart = nil end
+            end
+        end)
+    else
+        if farmConnection then farmConnection:Disconnect() farmConnection = nil end
+        if platformPart then platformPart:Destroy() platformPart = nil end
+    end
+end)
+
+-- [สวิตช์ที่ 2]: ระบบบูส FPS (10 -> 100+ FPS)
+CreateToggleRow("บูส FPS สูงสุด (10 -> 100+ FPS)", 55, function(state)
+    if state then
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        for _, v in ipairs(Lighting:GetChildren()) do
+            if v:IsA("PostEffect") then v.Enabled = false end
+        end
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.Reflectance = 0
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            end
+        end
+    else
+        Lighting.GlobalShadows = true
+    end
+end)
+
+-- [สวิตช์ที่ 3]: ระบบตัด AFK เตะออก (Anti-Idle)
+local antiAfkConn = nil
+CreateToggleRow("ตัดระบบ AFK เตะออก (Anti-Idle)", 100, function(state)
+    if state then
+        antiAfkConn = LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    else
+        if antiAfkConn then antiAfkConn:Disconnect() antiAfkConn = nil end
+    end
+end)
+
+-- 8. ระบบขยายหน้าต่างอิสระตามใจชอบ (Resize Handle)
+local ResizeBtn = Instance.new("TextButton")
+ResizeBtn.Size = UDim2.new(0, 18, 0, 18)
+ResizeBtn.Position = UDim2.new(1, -18, 1, -18)
+ResizeBtn.BackgroundTransparency = 1
+ResizeBtn.Text = "◢"
+ResizeBtn.TextColor3 = Color3.fromRGB(150, 150, 180)
+ResizeBtn.TextSize = 12
+ResizeBtn.Parent = MainFrame
+
+local resizing = false
+local resizeStartPos, startSize
+
+ResizeBtn.MouseButton1Down:Connect(function()
+    resizing = true
+    resizeStartPos = UserInputService:GetMouseLocation()
+    startSize = MainFrame.AbsoluteSize
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        resizing = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local delta = currentMousePos - resizeStartPos
+        local newWidth = math.clamp(startSize.X + delta.X, 300, 700)
+        local newHeight = math.clamp(startSize.Y + delta.Y, 250, 600)
+        MainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+        normalSize = UDim2.new(0, newWidth, 0, newHeight)
+    end
+end)
