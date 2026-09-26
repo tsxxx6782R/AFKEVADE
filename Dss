@@ -1,0 +1,221 @@
+-- Evade Compact Hub: Auto Jump [K], Lag Switch 0.5s [E] & Korblox Left Leg
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
+local localPlayer = Players.LocalPlayer
+
+-- สร้างหน้าต่างเมนูขนาดจิ๋ว
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Evade05Hub"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 180, 0, 210)
+mainFrame.Position = UDim2.new(0, 20, 0, 20)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+-- หัวข้อเมนูจิ๋ว
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -30, 0, 30)
+titleLabel.Position = UDim2.new(0, 8, 0, 0)
+titleLabel.Text = "Evade Hub [Mini]"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 13
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = mainFrame
+
+-- ปุ่มย่อ / ขยายหน้าต่าง
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 24, 0, 24)
+minimizeBtn.Position = UDim2.new(1, -27, 0, 3)
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.TextSize = 14
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+minimizeBtn.Parent = mainFrame
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 5)
+
+-- ปุ่มที่ 1: Auto Jump [K]
+local autoJumpBtn = Instance.new("TextButton")
+autoJumpBtn.Size = UDim2.new(0, 164, 0, 32)
+autoJumpBtn.Position = UDim2.new(0, 8, 0, 38)
+autoJumpBtn.Text = "Auto Jump: OFF [K]"
+autoJumpBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+autoJumpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoJumpBtn.TextSize = 12
+autoJumpBtn.Font = Enum.Font.GothamBold
+autoJumpBtn.Parent = mainFrame
+Instance.new("UICorner", autoJumpBtn).CornerRadius = UDim.new(0, 6)
+
+-- ปุ่มที่ 2: Anti-AFK
+local antiAfkBtn = Instance.new("TextButton")
+antiAfkBtn.Size = UDim2.new(0, 164, 0, 32)
+antiAfkBtn.Position = UDim2.new(0, 8, 0, 75)
+antiAfkBtn.Text = "Anti-AFK: ON"
+antiAfkBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+antiAfkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+antiAfkBtn.TextSize = 12
+antiAfkBtn.Font = Enum.Font.GothamBold
+antiAfkBtn.Parent = mainFrame
+Instance.new("UICorner", antiAfkBtn).CornerRadius = UDim.new(0, 6)
+
+-- ปุ่มที่ 3: Lag Switch (กด 1 ที เป็นสีเขียวทำงาน 0.5 วิ แล้วดับเอง)
+local lagSwitchBtn = Instance.new("TextButton")
+lagSwitchBtn.Size = UDim2.new(0, 164, 0, 32)
+lagSwitchBtn.Position = UDim2.new(0, 8, 0, 112)
+lagSwitchBtn.Text = "Lag Switch [0.5s] [E]"
+lagSwitchBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+lagSwitchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+lagSwitchBtn.TextSize = 12
+lagSwitchBtn.Font = Enum.Font.GothamBold
+lagSwitchBtn.Parent = mainFrame
+Instance.new("UICorner", lagSwitchBtn).CornerRadius = UDim.new(0, 6)
+
+-- ปุ่มที่ 4: Korblox Left Leg (ขากุดซ้าย)
+local korbloxBtn = Instance.new("TextButton")
+korbloxBtn.Size = UDim2.new(0, 164, 0, 32)
+korbloxBtn.Position = UDim2.new(0, 8, 0, 149)
+korbloxBtn.Text = "Korblox Left Leg"
+korbloxBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+korbloxBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+korbloxBtn.TextSize = 12
+korbloxBtn.Font = Enum.Font.GothamBold
+korbloxBtn.Parent = mainFrame
+Instance.new("UICorner", korbloxBtn).CornerRadius = UDim.new(0, 6)
+
+-- ตัวแปรควบคุม
+local autoJumpEnabled = false
+local antiAfkEnabled = true
+local lagSwitchActive = false
+local isMinimized = false
+
+local function toggleAutoJump()
+    autoJumpEnabled = not autoJumpEnabled
+    autoJumpBtn.Text = autoJumpEnabled and "Auto Jump: ON [K]" or "Auto Jump: OFF [K]"
+    autoJumpBtn.BackgroundColor3 = autoJumpEnabled and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+end
+
+-- ฟังก์ชันกดทำงาน 0.5 วินาทีแล้วตัดกลับมาปิดอัตโนมัติ
+local function triggerLagSwitch05()
+    if lagSwitchActive then return end
+    lagSwitchActive = true
+    
+    lagSwitchBtn.Text = "Lagging... [0.5s]"
+    lagSwitchBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- สีเขียวชั่วขณะ
+    
+    local startTime = tick()
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        local char = localPlayer.Character
+        if char then
+            local rootPart = char:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+            end
+        end
+        
+        -- ครบ 0.5 วินาทีแล้วหยุดอัตโนมัติทันที
+        if tick() - startTime >= 0.5 then
+            connection:Disconnect()
+            lagSwitchActive = false
+            lagSwitchBtn.Text = "Lag Switch [0.5s] [E]"
+            lagSwitchBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0) -- กลับเป็นสีแดง
+        end
+    end)
+end
+
+-- ย่อ/ขยายหน้าต่างจิ๋ว
+minimizeBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        mainFrame.Size = UDim2.new(0, 180, 0, 35)
+        autoJumpBtn.Visible = false
+        antiAfkBtn.Visible = false
+        lagSwitchBtn.Visible = false
+        korbloxBtn.Visible = false
+        minimizeBtn.Text = "+"
+    else
+        mainFrame.Size = UDim2.new(0, 180, 0, 210)
+        autoJumpBtn.Visible = true
+        antiAfkBtn.Visible = true
+        lagSwitchBtn.Visible = true
+        korbloxBtn.Visible = true
+        minimizeBtn.Text = "-"
+    end
+end)
+
+autoJumpBtn.MouseButton1Click:Connect(toggleAutoJump)
+antiAfkBtn.MouseButton1Click:Connect(function()
+    antiAfkEnabled = not antiAfkEnabled
+    antiAfkBtn.Text = antiAfkEnabled and "Anti-AFK: ON" or "Anti-AFK: OFF"
+    antiAfkBtn.BackgroundColor3 = antiAfkEnabled and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+end)
+lagSwitchBtn.MouseButton1Click:Connect(triggerLagSwitch05)
+
+-- คีย์ลัด (K และ E)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        if input.KeyCode == Enum.KeyCode.K then
+            toggleAutoJump()
+        elseif input.KeyCode == Enum.KeyCode.E then
+            triggerLagSwitch05()
+        end
+    end
+end)
+
+-- ฟังก์ชันขากุดซ้าย Korblox
+korbloxBtn.MouseButton1Click:Connect(function()
+    local char = localPlayer.Character
+    if char then
+        for _, partName in ipairs({"LeftLowerLeg", "LeftFoot", "LeftLeg"}) do
+            local part = char:FindFirstChild(partName)
+            if part then
+                part.Transparency = 1
+                part.CanCollide = false
+                for _, child in ipairs(part:GetChildren()) do
+                    if child:IsA("SpecialMesh") or child:IsA("BlockMesh") or child:IsA("CylinderMesh") then
+                        child.Scale = Vector3.new(0, 0, 0)
+                    end
+                end
+            end
+        end
+        korbloxBtn.Text = "Korblox Applied!"
+        korbloxBtn.BackgroundColor3 = Color3.fromRGB(46, 139, 87)
+    end
+end)
+
+-- ลูป Auto Jump ปกติ
+RunService.RenderStepped:Connect(function()
+    if autoJumpEnabled then
+        local char = localPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                if humanoid:GetState() == Enum.HumanoidStateType.Running and humanoid.MoveDirection.Magnitude > 0 then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end
+    end
+end)
+
+-- Anti-AFK
+localPlayer.Idled:Connect(function()
+    if antiAfkEnabled then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
+end)
+
+print("Evade Hub 0.5s Loaded Successfully!")
