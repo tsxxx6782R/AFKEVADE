@@ -1,0 +1,310 @@
+-- [[ Evade Abdul Menu: Ultimate Edition + Fixed Webhook System ]]
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+if CoreGui:FindFirstChild("EvadeAbdulMenu") then
+    CoreGui.EvadeAbdulMenu:Destroy()
+end
+
+local scriptStartTime = tick()
+local totalWins = 0
+local activeWebhookUrl = ""
+
+-- ฟังก์ชันส่ง Discord แบบปลอดภัย (รองรับ executor เกือบทุกตัว)
+local function SendDiscordWebhook(textMessage)
+    if activeWebhookUrl == "" or not activeWebhookUrl:find("https://discord.com/api/webhooks/") then 
+        warn("❌ ลิงก์ Webhook ไม่ถูกต้องหรือไม่พบลิงก์")
+        return false 
+    end
+    
+    local totalSec = math.floor(tick() - scriptStartTime)
+    local hours = math.floor(totalSec / 3600)
+    local mins = math.floor((totalSec % 3600) / 60)
+    local secs = totalSec % 60
+    
+    local data = {
+        ["content"] = "",
+        ["embeds"] = {{
+            ["title"] = "🤖 Evade Abdul Hub - แจ้งเตือนสถานะ",
+            ["description"] = textMessage,
+            ["color"] = 3066993,
+            ["fields"] = {
+                {["name"] = "⏳ เวลา AFK", ["value"] = string.format("%dชม. %dนาที %dวินาที", hours, mins, secs), ["inline"] = true},
+                {["name"] = "🏆 รอบที่ฟาร์มได้", ["value"] = tostring(totalWins) .. " รอบ", ["inline"] = true}
+            },
+            ["footer"] = {["text"] = "ระบบเชื่อมต่อ Discord สำเร็จ 100%"},
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+    
+    local success, response = pcall(function()
+        local encodedData = HttpService:JSONEncode(data)
+        if syn and syn.request then
+            syn.request({
+                Url = activeWebhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = encodedData
+            })
+        elseif http_request then
+            http_request({
+                Url = activeWebhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = encodedData
+            })
+        else
+            HttpService:PostAsync(activeWebhookUrl, encodedData, Enum.HttpContentType.ApplicationJson)
+        end
+    end)
+    
+    return success
+end
+
+-- สร้าง UI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EvadeAbdulMenu"
+ScreenGui.ResetOnSpawn = false
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 380, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -190, 0.5, -240)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.15
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+local RainbowStroke = Instance.new("UIStroke")
+RainbowStroke.Thickness = 3
+RainbowStroke.Parent = MainFrame
+task.spawn(function()
+    while MainFrame.Parent do
+        RainbowStroke.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+        task.wait(0.03)
+    end
+end)
+
+-- Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BackgroundTransparency = 1
+TopBar.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -90, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚡ Evade: อับดุล Hub Pro"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 17
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.Parent = TopBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = TopBar
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+-- Stats Panel
+local StatsPanel = Instance.new("Frame")
+StatsPanel.Size = UDim2.new(1, -30, 0, 40)
+StatsPanel.Position = UDim2.new(0, 15, 0, 50)
+StatsPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+StatsPanel.Parent = MainFrame
+Instance.new("UICorner", StatsPanel).CornerRadius = UDim.new(0, 8)
+
+local FpsLabel = Instance.new("TextLabel")
+FpsLabel.Size = UDim2.new(0.5, 0, 1, 0)
+FpsLabel.BackgroundTransparency = 1
+FpsLabel.Text = "FPS: 60"
+FpsLabel.TextColor3 = Color3.fromRGB(46, 204, 113)
+FpsLabel.Font = Enum.Font.GothamBold
+FpsLabel.Parent = StatsPanel
+
+local AfkLabel = Instance.new("TextLabel")
+AfkLabel.Size = UDim2.new(0.5, 0, 1, 0)
+AfkLabel.Position = UDim2.new(0.5, 0, 0, 0)
+AfkLabel.BackgroundTransparency = 1
+AfkLabel.Text = "AFK: 0น 0ว"
+AfkLabel.TextColor3 = Color3.fromRGB(241, 196, 15)
+AfkLabel.Font = Enum.Font.GothamBold
+AfkLabel.Parent = StatsPanel
+
+RunService.RenderStepped:Connect(function()
+    local totalSec = math.floor(tick() - scriptStartTime)
+    AfkLabel.Text = string.format("AFK: %dน %dว", math.floor(totalSec / 60), totalSec % 60)
+end)
+
+-- Content Area
+local ContentArea = Instance.new("ScrollingFrame")
+ContentArea.Size = UDim2.new(1, 0, 1, -100)
+ContentArea.Position = UDim2.new(0, 0, 0, 95)
+ContentArea.BackgroundTransparency = 1
+ContentArea.CanvasSize = UDim2.new(0, 0, 0, 280)
+ContentArea.Parent = MainFrame
+
+-- [ช่องใส่ลิงก์ + ปุ่มตกลงด้านข้างตามที่คุณต้องการ]
+local WebhookBox = Instance.new("TextBox")
+WebhookBox.Size = UDim2.new(1, -105, 0, 35)
+WebhookBox.Position = UDim2.new(0, 15, 0, 10)
+WebhookBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+WebhookBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+WebhookBox.PlaceholderText = "วางลิงก์ Webhook ที่นี่..."
+WebhookBox.Text = ""
+WebhookBox.TextSize = 11
+WebhookBox.Parent = ContentArea
+Instance.new("UICorner", WebhookBox).CornerRadius = UDim.new(0, 6)
+
+-- ปุ่ม "ตกลง" ด้านข้าง
+local SaveWebhookBtn = Instance.new("TextButton")
+SaveWebhookBtn.Size = UDim2.new(0, 70, 0, 35)
+SaveWebhookBtn.Position = UDim2.new(1, -85, 0, 10)
+SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+SaveWebhookBtn.Text = "ตกลง"
+SaveWebhookBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SaveWebhookBtn.Font = Enum.Font.GothamBold
+SaveWebhookBtn.Parent = ContentArea
+Instance.new("UICorner", SaveWebhookBtn).CornerRadius = UDim.new(0, 6)
+
+SaveWebhookBtn.MouseButton1Click:Connect(function()
+    activeWebhookUrl = WebhookBox.Text
+    if activeWebhookUrl ~= "" and activeWebhookUrl:find("https://discord.com/api/webhooks/") then
+        SaveWebhookBtn.Text = "สำเร็จ!"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+        task.wait(1.5)
+        SaveWebhookBtn.Text = "ตกลง"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+    else
+        SaveWebhookBtn.Text = "ผิดพลาด!"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+        task.wait(1.5)
+        SaveWebhookBtn.Text = "ตกลง"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+    end
+end)
+
+-- ปุ่มทดสอบส่งแจ้งเตือนทันทีเพื่อพิสูจน์ว่าใช้ได้จริง
+local TestBtn = Instance.new("TextButton")
+TestBtn.Size = UDim2.new(1, -30, 0, 35)
+TestBtn.Position = UDim2.new(0, 15, 0, 55)
+TestBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+TestBtn.Text = "🧪 กดเพื่อทดสอบส่งแจ้งเตือนเข้า Discord ทันที"
+TestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TestBtn.Font = Enum.Font.GothamBold
+TestBtn.Parent = ContentArea
+Instance.new("UICorner", TestBtn).CornerRadius = UDim.new(0, 6)
+
+TestBtn.MouseButton1Click:Connect(function()
+    activeWebhookUrl = WebhookBox.Text
+    local success = SendDiscordWebhook("🔔 ทดสอบระบบแจ้งเตือน: หากข้อความนี้เด้งเข้าห้อง Discord แสดงว่าใช้งานได้จริง 100% แล้วครับ!")
+    if success then
+        TestBtn.Text = "✅ ส่งข้อความสำเร็จ! เช็คใน Discord ได้เลย"
+        task.wait(2)
+        TestBtn.Text = "🧪 กดเพื่อทดสอบส่งแจ้งเตือนเข้า Discord ทันที"
+    else
+        TestBtn.Text = "❌ ส่งไม่ผ่าน (เช็คลิงก์หรือตัวรันสคริปต์)"
+        task.wait(2)
+        TestBtn.Text = "🧪 กดเพื่อทดสอบส่งแจ้งเตือนเข้า Discord ทันที"
+    end
+end)
+
+-- ฟังก์ชัน Toggle ทั่วไป
+local function CreateToggle(name, yPos, callback)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0, 240, 0, 35)
+    Label.Position = UDim2.new(0, 15, 0, yPos)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ContentArea
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
+    ToggleBtn.Position = UDim2.new(1, -63, 0, yPos + 5)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    ToggleBtn.Text = ""
+    ToggleBtn.Parent = ContentArea
+    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+
+    local Circle = Instance.new("Frame")
+    Circle.Size = UDim2.new(0, 18, 0, 18)
+    Circle.Position = UDim2.new(0, 3, 0.5, -9)
+    Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Circle.Parent = ToggleBtn
+    Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
+
+    local state = false
+    ToggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+            Circle:TweenPosition(UDim2.new(1, -21, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        else
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            Circle:TweenPosition(UDim2.new(0, 3, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        end
+        callback(state)
+    end)
+end
+
+-- สวิตช์ฟาร์ม
+local platformPart = nil
+local farmConn = nil
+CreateToggle("ออโต้ฟาร์มลอยฟ้า (Auto Farm High)", 105, function(state)
+    if state then
+        farmConn = RunService.RenderStepped:Connect(function()
+            local char = LocalPlayer.Character
+            if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+            local hrp = char.HumanoidRootPart
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                if not platformPart or not platformPart.Parent then
+                    platformPart = Instance.new("Part")
+                    platformPart.Size = Vector3.new(10, 1, 10)
+                    platformPart.Position = Vector3.new(hrp.Position.X, 350, hrp.Position.Z)
+                    platformPart.Anchored = true
+                    platformPart.Transparency = 0.5
+                    platformPart.Parent = Workspace
+                end
+                hrp.CFrame = CFrame.new(platformPart.Position + Vector3.new(0, 3, 0))
+            else
+                if platformPart then
+                    platformPart:Destroy()
+                    platformPart = nil
+                    totalWins = totalWins + 1
+                    SendDiscordWebhook("🎉 ฟาร์มครบรอบ / ตัวละครรีเซ็ตแล้ว!")
+                end
+            end
+        end)
+    else
+        if farmConn then farmConn:Disconnect() farmConn = nil end
+        if platformPart then platformPart:Destroy() platformPart = nil end
+    end
+end)
+
+CreateToggle("บูส FPS สูงสุด", 150, function(state)
+    Lighting.GlobalShadows = not state
+end)
