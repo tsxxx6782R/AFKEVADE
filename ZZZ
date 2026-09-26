@@ -1,0 +1,417 @@
+-- [[ Evade Abdul Menu: Ultimate Edition + Live Webhook Input Box ]]
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+if CoreGui:FindFirstChild("EvadeAbdulMenu") then
+    CoreGui.EvadeAbdulMenu:Destroy()
+end
+
+local scriptStartTime = tick()
+local totalWins = 0
+local savedWebhookUrl = "" -- ตัวแปรเก็บลิงก์ Webhook ที่พิมพ์ในช่อง
+
+-- ฟังก์ชันส่งแจ้งเตือนเข้า Discord
+local function SendDiscordWebhook(statusText)
+    if savedWebhookUrl == "" or not savedWebhookUrl:find("https://discord.com/api/webhooks/") then return end
+    
+    local totalSeconds = math.floor(tick() - scriptStartTime)
+    local hours = math.floor(totalSeconds / 3600)
+    local minutes = math.floor((totalSeconds % 3600) / 60)
+    local seconds = totalSeconds % 60
+    local afkTimeStr = string.format("%d ชม. %d นาที %d วินาที", hours, minutes, seconds)
+    
+    local data = {
+        ["content"] = "",
+        ["embeds"] = {{
+            ["title"] = "🤖 Evade Abdul Hub - สถานะการฟาร์ม",
+            ["description"] = statusText,
+            ["color"] = 3066993,
+            ["fields"] = {
+                {["name"] = "⏳ ระยะเวลา AFK", ["value"] = afkTimeStr, ["inline"] = true},
+                {["name"] = "🏆 รอบที่ชนะ/ฟาร์ม", ["value"] = tostring(totalWins) .. " รอบ", ["inline"] = true},
+                {["name"] = "👤 ผู้เล่น", ["value"] = LocalPlayer.Name, ["inline"] = false}
+            },
+            ["footer"] = {["text"] = "ระบบแจ้งเตือนอัตโนมัติจาก Roblox Evade"},
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+    
+    local body = HttpService:JSONEncode(data)
+    local headers = {["Content-Type"] = "application/json"}
+    
+    pcall(function()
+        HttpService:PostAsync(savedWebhookUrl, body, Enum.HttpContentType.ApplicationJson, false, headers)
+    end)
+end
+
+-- สร้าง ScreenGui หลัก
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EvadeAbdulMenu"
+ScreenGui.ResetOnSpawn = false
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+-- กรอบเมนูหลัก (ขยายความสูงเผื่อช่องพิมพ์)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 0, 0, 0)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.15
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+-- อนิเมชั่นเปิดเมนู
+task.spawn(function()
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    TweenService:Create(MainFrame, tweenInfo, {
+        Size = UDim2.new(0, 380, 0, 460),
+        Position = UDim2.new(0.5, -190, 0.5, -230)
+    }):Play()
+end)
+
+-- ขอบออร่าสายรุ้ง
+local RainbowStroke = Instance.new("UIStroke")
+RainbowStroke.Thickness = 3
+RainbowStroke.Parent = MainFrame
+
+task.spawn(function()
+    while MainFrame.Parent do
+        RainbowStroke.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+        task.wait(0.03)
+    end
+end)
+
+-- Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BackgroundTransparency = 1
+TopBar.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -90, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚡ Evade: อับดุล Hub Pro"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 17
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TopBar
+
+-- ปุ่ม Minimize (-)
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+MinimizeBtn.Position = UDim2.new(1, -75, 0.5, -15)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.TextSize = 16
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Parent = TopBar
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 6)
+
+-- ปุ่ม Close (X)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 14
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = TopBar
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+local isMinimized = false
+local normalSize = UDim2.new(0, 380, 0, 460)
+local minimizedSize = UDim2.new(0, 380, 0, 45)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = isMinimized and minimizedSize or normalSize}):Play()
+    MinimizeBtn.Text = isMinimized and "+" or "-"
+end)
+
+-- เส้นคั่น
+local Divider = Instance.new("Frame")
+Divider.Size = UDim2.new(1, -30, 0, 1)
+Divider.Position = UDim2.new(0, 15, 0, 45)
+Divider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Divider.BackgroundTransparency = 0.8
+Divider.BorderSizePixel = 0
+Divider.Parent = MainFrame
+
+-- Panel แสดงสถิติ FPS & AFK Timer
+local StatsPanel = Instance.new("Frame")
+StatsPanel.Size = UDim2.new(1, -30, 0, 45)
+StatsPanel.Position = UDim2.new(0, 15, 0, 55)
+StatsPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+StatsPanel.BackgroundTransparency = 0.5
+StatsPanel.BorderSizePixel = 0
+StatsPanel.Parent = MainFrame
+Instance.new("UICorner", StatsPanel).CornerRadius = UDim.new(0, 8)
+
+local FpsTextLabel = Instance.new("TextLabel")
+FpsTextLabel.Size = UDim2.new(0.5, 0, 1, 0)
+FpsTextLabel.BackgroundTransparency = 1
+FpsTextLabel.Text = "FPS: Calculating..."
+FpsTextLabel.TextColor3 = Color3.fromRGB(46, 204, 113)
+FpsTextLabel.TextSize = 12
+FpsTextLabel.Font = Enum.Font.GothamBold
+FpsTextLabel.Parent = StatsPanel
+
+local AfkTimeLabel = Instance.new("TextLabel")
+AfkTimeLabel.Size = UDim2.new(0.5, 0, 1, 0)
+AfkTimeLabel.Position = UDim2.new(0.5, 0, 0, 0)
+AfkTimeLabel.BackgroundTransparency = 1
+AfkTimeLabel.Text = "AFK: 0 นาที"
+AfkTimeLabel.TextColor3 = Color3.fromRGB(241, 196, 15)
+AfkTimeLabel.TextSize = 12
+AfkTimeLabel.Font = Enum.Font.GothamBold
+AfkTimeLabel.Parent = StatsPanel
+
+local frameCount = 0
+local lastUpdate = tick()
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = tick()
+    if now - lastUpdate >= 1 then
+        FpsTextLabel.Text = "FPS: " .. tostring(math.floor(frameCount / (now - lastUpdate)))
+        frameCount = 0
+        lastUpdate = now
+    end
+    local totalSec = math.floor(now - scriptStartTime)
+    AfkTimeLabel.Text = string.format("AFK: %dน %dว", math.floor(totalSec / 60), totalSec % 60)
+end)
+
+-- พื้นที่ฟังก์ชัน
+local ContentArea = Instance.new("ScrollingFrame")
+ContentArea.Size = UDim2.new(1, 0, 1, -115)
+ContentArea.Position = UDim2.new(0, 0, 0, 110)
+ContentArea.BackgroundTransparency = 1
+ContentArea.BorderSizePixel = 0
+ContentArea.ScrollBarThickness = 4
+ContentArea.CanvasSize = UDim2.new(0, 0, 0, 270)
+ContentArea.Parent = MainFrame
+
+-- [ช่องใส่ลิงก์ Webhook แบบช่องแชท Roblox]
+local WebhookInputLabel = Instance.new("TextLabel")
+WebhookInputLabel.Size = UDim2.new(1, -40, 0, 20)
+WebhookInputLabel.Position = UDim2.new(0, 20, 0, 5)
+WebhookInputLabel.BackgroundTransparency = 1
+WebhookInputLabel.Text = "🔗 วาง Discord Webhook URL ที่นี่:"
+WebhookInputLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+WebhookInputLabel.TextSize = 12
+WebhookInputLabel.Font = Enum.Font.GothamBold
+WebhookInputLabel.TextXAlignment = Enum.TextXAlignment.Left
+WebhookInputLabel.Parent = ContentArea
+
+local WebhookTextBox = Instance.new("TextBox")
+WebhookTextBox.Size = UDim2.new(1, -40, 0, 32)
+WebhookTextBox.Position = UDim2.new(0, 20, 0, 28)
+WebhookTextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+WebhookTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+WebhookTextBox.PlaceholderText = "คลิกเพื่อวางลิงก์ Webhook ที่นี่..."
+WebhookTextBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 150)
+WebhookTextBox.Text = ""
+WebhookTextBox.TextSize = 11
+WebhookTextBox.Font = Enum.Font.Gotham
+WebhookTextBox.ClearTextOnFocus = false
+WebhookTextBox.Parent = ContentArea
+Instance.new("UICorner", WebhookTextBox).CornerRadius = UDim.new(0, 6)
+
+local BoxStroke = Instance.new("UIStroke")
+BoxStroke.Color = Color3.fromRGB(88, 101, 242)
+BoxStroke.Thickness = 1
+BoxStroke.Parent = WebhookTextBox
+
+-- อัปเดตลิงก์อัตโนมัติเมื่อพิมพ์เสร็จ
+WebhookTextBox.FocusLost:Connect(function()
+    savedWebhookUrl = WebhookTextBox.Text
+end)
+
+local function CreateToggleRow(name, yPos, callback)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0, 230, 0, 35)
+    Label.Position = UDim2.new(0, 20, 0, yPos)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ContentArea
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
+    ToggleBtn.Position = UDim2.new(1, -70, 0, yPos + 5)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    ToggleBtn.AutoButtonColor = false
+    ToggleBtn.Text = ""
+    ToggleBtn.Parent = ContentArea
+    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+
+    local ToggleCircle = Instance.new("Frame")
+    ToggleCircle.Size = UDim2.new(0, 18, 0, 18)
+    ToggleCircle.Position = UDim2.new(0, 3, 0.5, -9)
+    ToggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleCircle.Parent = ToggleBtn
+    Instance.new("UICorner", ToggleCircle).CornerRadius = UDim.new(1, 0)
+
+    local isEnabled = false
+    ToggleBtn.MouseButton1Click:Connect(function()
+        isEnabled = not isEnabled
+        if isEnabled then
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+            ToggleCircle:TweenPosition(UDim2.new(1, -21, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        else
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            ToggleCircle:TweenPosition(UDim2.new(0, 3, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        end
+        callback(isEnabled)
+    end)
+end
+
+-- 1. ออโต้ฟาร์มลอยฟ้า + นับรอบส่ง Webhook
+local platformPart = nil
+local farmConnection = nil
+CreateToggleRow("ออโต้ฟาร์มลอยฟ้า (Auto Farm High)", 75, function(state)
+    if state then
+        farmConnection = RunService.RenderStepped:Connect(function()
+            local char = LocalPlayer.Character
+            if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+            local hrp = char.HumanoidRootPart
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            
+            if hum and hum.Health > 0 then
+                if not platformPart or not platformPart.Parent then
+                    platformPart = Instance.new("Part")
+                    platformPart.Name = "AbdulFarmPlatform"
+                    platformPart.Size = Vector3.new(10, 1, 10)
+                    platformPart.Position = Vector3.new(hrp.Position.X, 350, hrp.Position.Z)
+                    platformPart.Anchored = true
+                    platformPart.Transparency = 0.5
+                    platformPart.BrickColor = BrickColor.new("Bright blue")
+                    platformPart.Parent = Workspace
+                end
+                hrp.CFrame = CFrame.new(platformPart.Position + Vector3.new(0, 3, 0))
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            else
+                if platformPart then
+                    platformPart:Destroy()
+                    platformPart = nil
+                    totalWins = totalWins + 1
+                    SendDiscordWebhook("🎉 ฟาร์มสำเร็จผ่านไปอีก 1 รอบแล้ว!")
+                end
+            end
+        end)
+    else
+        if farmConnection then farmConnection:Disconnect() farmConnection = nil end
+        if platformPart then platformPart:Destroy() platformPart = nil end
+    end
+end)
+
+-- 2. บูส FPS
+CreateToggleRow("บูส FPS สูงสุด (10 -> 100+ FPS)", 120, function(state)
+    if state then
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        for _, v in ipairs(Lighting:GetChildren()) do if v:IsA("PostEffect") then v.Enabled = false end end
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic v.Reflectance = 0
+            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
+        end
+    else
+        Lighting.GlobalShadows = true
+    end
+end)
+
+-- 3. ตัด AFK เตะออก
+local antiAfkConn = nil
+CreateToggleRow("ตัดระบบ AFK เตะออก (Anti-Idle)", 165, function(state)
+    if state then
+        antiAfkConn = LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    else
+        if antiAfkConn then antiAfkConn:Disconnect() antiAfkConn = nil end
+    end
+end)
+
+-- ปุ่มทดสอบส่ง Discord Webhook
+local TestWebhookBtn = Instance.new("TextButton")
+TestWebhookBtn.Size = UDim2.new(1, -40, 0, 32)
+TestWebhookBtn.Position = UDim2.new(0, 20, 0, 215)
+TestWebhookBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+TestWebhookBtn.Text = "📤 ส่งรายงานสถานะเข้า Discord ตอนนี้"
+TestWebhookBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TestWebhookBtn.TextSize = 12
+TestWebhookBtn.Font = Font.new and Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold) or Enum.Font.GothamBold
+TestWebhookBtn.Parent = ContentArea
+Instance.new("UICorner", TestWebhookBtn).CornerRadius = UDim.new(0, 6)
+
+TestWebhookBtn.MouseButton1Click:Connect(function()
+    if savedWebhookUrl == "" then
+        TestWebhookBtn.Text = "❌ กรุณากรอกลิงก์ Webhook ก่อน!"
+        task.wait(2)
+        TestWebhookBtn.Text = "📤 ส่งรายงานสถานะเข้า Discord ตอนนี้"
+        return
+    end
+    
+    SendDiscordWebhook("📢 ทดสอบระบบแจ้งเตือนสำเร็จ! พร้อมฟาร์มข้ามคืนแล้ว")
+    TestWebhookBtn.Text = "✅ ส่งรายงานเข้า Discord เรียบร้อย!"
+    task.wait(2)
+    TestWebhookBtn.Text = "📤 ส่งรายงานสถานะเข้า Discord ตอนนี้"
+end)
+
+-- ระบบขยายหน้าต่างอิสระ (Resize Handle)
+local ResizeBtn = Instance.new("TextButton")
+ResizeBtn.Size = UDim2.new(0, 18, 0, 18)
+ResizeBtn.Position = UDim2.new(1, -18, 1, -18)
+ResizeBtn.BackgroundTransparency = 1
+ResizeBtn.Text = "◢"
+ResizeBtn.TextColor3 = Color3.fromRGB(150, 150, 180)
+ResizeBtn.TextSize = 12
+ResizeBtn.Parent = MainFrame
+
+local resizing = false
+local resizeStartPos, startSize
+
+ResizeBtn.MouseButton1Down:Connect(function()
+    resizing = true
+    resizeStartPos = UserInputService:GetMouseLocation()
+    startSize = MainFrame.AbsoluteSize
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then resizing = false end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = UserInputService:GetMouseLocation() - resizeStartPos
+        local newWidth = math.clamp(startSize.X + delta.X, 300, 700)
+        local newHeight = math.clamp(startSize.Y + delta.Y, 250, 650)
+        MainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+        normalSize = UDim2.new(0, newWidth, 0, newHeight)
+    end
+end)
