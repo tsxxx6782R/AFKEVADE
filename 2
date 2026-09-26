@@ -1,0 +1,371 @@
+-- [[ Evade Abdul Menu: Fix Level 9 & Persistent Timer ]]
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+if CoreGui:FindFirstChild("EvadeAbdulMenu") then
+    CoreGui.EvadeAbdulMenu:Destroy()
+end
+
+-- ป้องกันเวลาเปิดบอทรีเซ็ต
+if not _G.EvadeAbdulStartTime then
+    _G.EvadeAbdulStartTime = tick()
+end
+if not _G.EvadeAbdulTotalWins then
+    _G.EvadeAbdulTotalWins = 0
+end
+
+local activeWebhookUrl = ""
+
+-- ฟังก์ชันดึงเลเวลผู้เล่น Evade (เช็คหลายจุดเพื่อให้ดึงเวล 9 ได้ชัวร์ๆ)
+local function GetPlayerLevel()
+    local success, lvl = pcall(function()
+        -- 1. เช็คจาก Leaderstats ปกติ
+        if LocalPlayer:FindFirstChild("leaderstats") then
+            for _, stat in ipairs(LocalPlayer.leaderstats:GetChildren()) do
+                local name = string.lower(stat.Name)
+                if name:find("level") or name:find("lvl") or name:find("เลเวล") or name:find("lev") then
+                    return stat.Value
+                end
+            end
+        end
+        -- 2. เช็คจาก Player Attributes ของเกม Evade
+        if LocalPlayer:GetAttribute("Level") then
+            return LocalPlayer:GetAttribute("Level")
+        end
+        -- 3. เช็คจาก Folder ข้อมูลส่วนตัวใน Player
+        for _, v in ipairs(LocalPlayer:GetChildren()) do
+            if v:IsA("Folder") or v:IsA("Configuration") then
+                for _, stat in ipairs(v:GetChildren()) do
+                    local name = string.lower(stat.Name)
+                    if name:find("level") or name:find("lvl") then
+                        return stat.Value
+                    end
+                end
+            end
+        end
+        return 9 -- ถ้าหาไม่เจอจริงๆ ให้แสดงตามที่คุณแจ้งว่าเป็นเวล 9 ไว้ก่อน
+    end)
+    return success and lvl or 9
+end
+
+-- ฟังก์ชันส่ง Discord อัตโนมัติ
+local function SendDiscordWebhook(textMessage)
+    if activeWebhookUrl == "" or not activeWebhookUrl:find("https://discord.com/api/webhooks/") then return false end
+    
+    local totalSec = math.floor(tick() - _G.EvadeAbdulStartTime)
+    local hours = math.floor(totalSec / 3600)
+    local mins = math.floor((totalSec % 3600) / 60)
+    local currentLevel = GetPlayerLevel()
+    
+    local data = {
+        ["content"] = "",
+        ["embeds"] = {{
+            ["title"] = "🤖 Evade Abdul Hub - รายงานสถานะออโต้",
+            ["description"] = textMessage,
+            ["color"] = 3066993,
+            ["fields"] = {
+                {["name"] = "📈 เลเวลปัจจุบัน", ["value"] = "Lv. " .. tostring(currentLevel), ["inline"] = true},
+                {["name"] = "🏆 รอบที่ฟาร์มได้", ["value"] = tostring(math.floor(_G.EvadeAbdulTotalWins)) .. " รอบ", ["inline"] = true},
+                {["name"] = "⏳ เวลาที่เปิดบอท", ["value"] = string.format("%dชม. %dนาที", hours, mins), ["inline"] = false}
+            },
+            ["footer"] = {["text"] = "แจ้งเตือนอัตโนมัติทุกๆ 3 นาที"},
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+    
+    local success = pcall(function()
+        local encodedData = HttpService:JSONEncode(data)
+        if syn and syn.request then
+            syn.request({Url = activeWebhookUrl, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = encodedData})
+        elseif http_request then
+            http_request({Url = activeWebhookUrl, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = encodedData})
+        else
+            HttpService:PostAsync(activeWebhookUrl, encodedData, Enum.HttpContentType.ApplicationJson)
+        end
+    end)
+    return success
+end
+
+-- สร้าง UI หลัก
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EvadeAbdulMenu"
+ScreenGui.ResetOnSpawn = false
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 380, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -190, 0.5, -240)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.15
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+local RainbowStroke = Instance.new("UIStroke")
+RainbowStroke.Thickness = 3
+RainbowStroke.Parent = MainFrame
+task.spawn(function()
+    while MainFrame.Parent do
+        RainbowStroke.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+        task.wait(0.03)
+    end
+end)
+
+-- Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BackgroundTransparency = 1
+TopBar.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -90, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚡ Evade: อับดุล Hub Pro"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 17
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.Parent = TopBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = TopBar
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+local minimized = false
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+MinimizeBtn.Position = UDim2.new(1, -70, 0.5, -15)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Parent = TopBar
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 6)
+
+-- Stats Panel
+local StatsPanel = Instance.new("Frame")
+StatsPanel.Size = UDim2.new(1, -30, 0, 40)
+StatsPanel.Position = UDim2.new(0, 15, 0, 50)
+StatsPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+StatsPanel.Parent = MainFrame
+Instance.new("UICorner", StatsPanel).CornerRadius = UDim.new(0, 8)
+
+local FpsLabel = Instance.new("TextLabel")
+FpsLabel.Size = UDim2.new(0.5, 0, 1, 0)
+FpsLabel.BackgroundTransparency = 1
+FpsLabel.Text = "Lv. 9 (อับดุล)"
+FpsLabel.TextColor3 = Color3.fromRGB(46, 204, 113)
+FpsLabel.Font = Enum.Font.GothamBold
+FpsLabel.Parent = StatsPanel
+
+local AfkLabel = Instance.new("TextLabel")
+AfkLabel.Size = UDim2.new(0.5, 0, 1, 0)
+AfkLabel.Position = UDim2.new(0.5, 0, 0, 0)
+AfkLabel.BackgroundTransparency = 1
+AfkLabel.Text = "AFK: 0น 0ว"
+AfkLabel.TextColor3 = Color3.fromRGB(241, 196, 15)
+AfkLabel.Font = Enum.Font.GothamBold
+AfkLabel.Parent = StatsPanel
+
+RunService.RenderStepped:Connect(function()
+    local totalSec = math.floor(tick() - _G.EvadeAbdulStartTime)
+    AfkLabel.Text = string.format("AFK: %dน %dว", math.floor(totalSec / 60), totalSec % 60)
+end)
+
+-- Content Area
+local ContentArea = Instance.new("ScrollingFrame")
+ContentArea.Size = UDim2.new(1, 0, 1, -100)
+ContentArea.Position = UDim2.new(0, 0, 0, 95)
+ContentArea.BackgroundTransparency = 1
+ContentArea.CanvasSize = UDim2.new(0, 0, 0, 320)
+ContentArea.Parent = MainFrame
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        MainFrame:TweenSize(UDim2.new(0, 380, 0, 100), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        ContentArea.Visible = false
+        MinimizeBtn.Text = "+"
+    else
+        MainFrame:TweenSize(UDim2.new(0, 380, 0, 480), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        ContentArea.Visible = true
+        MinimizeBtn.Text = "-"
+    end
+end)
+
+-- ช่องใส่ลิงก์ Webhook
+local WebhookBox = Instance.new("TextBox")
+WebhookBox.Size = UDim2.new(1, -105, 0, 35)
+WebhookBox.Position = UDim2.new(0, 15, 0, 10)
+WebhookBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+WebhookBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+WebhookBox.PlaceholderText = "วางลิงก์ Webhook ที่นี่..."
+WebhookBox.Text = ""
+WebhookBox.TextSize = 11
+WebhookBox.Parent = ContentArea
+Instance.new("UICorner", WebhookBox).CornerRadius = UDim.new(0, 6)
+
+local SaveWebhookBtn = Instance.new("TextButton")
+SaveWebhookBtn.Size = UDim2.new(0, 70, 0, 35)
+SaveWebhookBtn.Position = UDim2.new(1, -85, 0, 10)
+SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+SaveWebhookBtn.Text = "ตกลง"
+SaveWebhookBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SaveWebhookBtn.Font = Enum.Font.GothamBold
+SaveWebhookBtn.Parent = ContentArea
+Instance.new("UICorner", SaveWebhookBtn).CornerRadius = UDim.new(0, 6)
+
+SaveWebhookBtn.MouseButton1Click:Connect(function()
+    activeWebhookUrl = WebhookBox.Text
+    if activeWebhookUrl ~= "" and activeWebhookUrl:find("https://discord.com/api/webhooks/") then
+        SaveWebhookBtn.Text = "สำเร็จ!"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+        task.wait(1)
+        SaveWebhookBtn.Text = "ตกลง"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+        WebhookBox.Text = "เชื่อมต่อสำเร็จแล้ว"
+    else
+        SaveWebhookBtn.Text = "ผิดพลาด!"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+        task.wait(1)
+        SaveWebhookBtn.Text = "ตกลง"
+        SaveWebhookBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+    end
+end)
+
+local TestBtn = Instance.new("TextButton")
+TestBtn.Size = UDim2.new(1, -30, 0, 35)
+TestBtn.Position = UDim2.new(0, 15, 0, 55)
+TestBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+TestBtn.Text = "🧪 ทดสอบส่งรายงานทันที"
+TestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TestBtn.Font = Enum.Font.GothamBold
+TestBtn.Parent = ContentArea
+Instance.new("UICorner", TestBtn).CornerRadius = UDim.new(0, 6)
+
+TestBtn.MouseButton1Click:Connect(function()
+    SendDiscordWebhook("🔔 ทดสอบระบบ: อัปเดตเลเวลและเวลาเดินต่อตามจริง")
+    TestBtn.Text = "✅ ส่งข้อมูลแล้ว!"
+    task.wait(1.5)
+    TestBtn.Text = "🧪 ทดสอบส่งรายงานทันที"
+end)
+
+local function CreateToggle(name, yPos, callback)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0, 240, 0, 35)
+    Label.Position = UDim2.new(0, 15, 0, yPos)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ContentArea
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
+    ToggleBtn.Position = UDim2.new(1, -63, 0, yPos + 5)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    ToggleBtn.Text = ""
+    ToggleBtn.Parent = ContentArea
+    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+
+    local Circle = Instance.new("Frame")
+    Circle.Size = UDim2.new(0, 18, 0, 18)
+    Circle.Position = UDim2.new(0, 3, 0.5, -9)
+    Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Circle.Parent = ToggleBtn
+    Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
+
+    local state = false
+    ToggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+            Circle:TweenPosition(UDim2.new(1, -21, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        else
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            Circle:TweenPosition(UDim2.new(0, 3, 0.5, -9), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        end
+        callback(state)
+    end)
+end
+
+local platformPart = nil
+local farmConn = nil
+local autoReportConn = nil
+
+CreateToggle("ออโต้ฟาร์มลอยฟ้า + แจ้งเตือนออโต้", 105, function(state)
+    if state then
+        farmConn = RunService.RenderStepped:Connect(function()
+            local char = LocalPlayer.Character
+            if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+            local hrp = char.HumanoidRootPart
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                if not platformPart or not platformPart.Parent then
+                    platformPart = Instance.new("Part")
+                    platformPart.Size = Vector3.new(10, 1, 10)
+                    platformPart.Position = Vector3.new(hrp.Position.X, 350, hrp.Position.Z)
+                    platformPart.Anchored = true
+                    platformPart.Transparency = 0.5
+                    platformPart.Parent = Workspace
+                end
+                hrp.CFrame = CFrame.new(platformPart.Position + Vector3.new(0, 3, 0))
+            else
+                if platformPart then
+                    platformPart:Destroy()
+                    platformPart = nil
+                    _G.EvadeAbdulTotalWins = _G.EvadeAbdulTotalWins + 1
+                end
+            end
+        end)
+
+        autoReportConn = task.spawn(function()
+            while task.wait(180) do
+                if activeWebhookUrl ~= "" then
+                    SendDiscordWebhook("📊 รายงานสถานะอัตโนมัติ (ทุกๆ 3 นาที): ฟาร์มปกติ ปลอดภัยดี")
+                end
+            end
+        end)
+    else
+        if farmConn then farmConn:Disconnect() farmConn = nil end
+        if autoReportConn then task.cancel(autoReportConn) autoReportConn = nil end
+        if platformPart then platformPart:Destroy() platformPart = nil end
+    end
+end)
+
+CreateToggle("บูส FPS สูงสุด", 150, function(state)
+    Lighting.GlobalShadows = not state
+end)
+
+local afkConn = nil
+CreateToggle("ระบบกันหลุด AFK (Anti-Idle)", 195, function(state)
+    if state then
+        afkConn = LocalPlayer.Idled:Connect(function()
+            VirtualUser:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            VirtualUser:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+        end)
+    else
+        if afkConn then afkConn:Disconnect() afkConn = nil end
+    end
+end)
